@@ -1,87 +1,69 @@
-# Problems: FIXME:
-#    When a node does not link to any other nodes, importance vector will converge towards 0
-#    5x5 [[2, 3], [0, 3], [1, 3, 4], [1], [1, 2]] -> converge towards 0
-
 import numpy as np
 import random
-from typing import Tuple, List
 
-# Node index, link indices
-Node = Tuple[int, List[int]]
-Network = List[Node]
+# Index, outgoing links
+Node = tuple[int, list[int]]
 
-# Starting index, indices register
-Agent = Tuple[int, np.ndarray]
+class Network:
+    def __init__(self, num_nodes : int, max_links : int = 5) -> None:
+        """
+        Creates a new network
 
-# Explanation ... TODO:FIXME:
-DEFAULT_DAMPING = 0.85
-
-def generate_node(index : int, num_nodes : int, max_connections : int = 3) -> Node:
-    """Generates a single node, with a random number of links to other nodes"""
-    num_links = random.randint(1, min(num_nodes - 1, max_connections))
-    max_index = min(num_nodes, num_links * 2)
-    
-    indices = [i for i in range(max_index) if i != index]
-    links = random.sample(indices, num_links)
-
-    return (index, links)
-
-def generate_network(num_nodes : int) -> Network:
-    """Generates a network of nodes"""
-    return [generate_node(i, num_nodes) for i in range(num_nodes)]
-
-def link_matrix_from_network(network : Network) -> np.ndarray:
-    """Creates a link matrix from a network"""
-    num_dimensions = len(network)
-    vectors = []
-
-    for _, node_links in network:
-        vec = np.zeros(num_dimensions, dtype="float64")
-        for link in node_links: vec[link] = 1
-        vectors.append(vec / np.sum(vec))
-    
-    return np.stack(vectors, axis=1)
-
-def pagerank(network : Network, num_iterations : int = 100, damping : float = DEFAULT_DAMPING) -> np.ndarray:
-    """Ranks a network over 'num_iterations' iterations, and returns the ranks as a vector"""
-    num_dimensions = len(network)
-    link_matrix = link_matrix_from_network(network)
-    
-    importance_vector = np.ones(num_dimensions) / num_dimensions
-    dampened_link_matrix = damping * link_matrix + (1 - damping) / num_dimensions
-
-    for _ in range(num_iterations):
-        importance_vector = dampened_link_matrix @ importance_vector
+        num_nodes : Number of nodes in network
+        max_links : Maximum number of outgoing links from each node
+        """
         
-    return importance_vector
+        self.num_nodes = num_nodes
+        self.nodes = [self.generate_node(i, num_nodes, max_links) for i in range(num_nodes)]
 
-def generate_agents(num_agents : int, num_nodes : int) -> List[Agent]:
-    """Generates an array of agents"""
-    return [(random.randint(0, num_nodes - 1), np.zeros(num_nodes, dtype="int32")) for i in range(num_agents)]
+    def generate_node(self, index : int, num_nodes : int, max_links : int) -> Node:
+        """
+        Creates a single node
 
-def progess_agent(agent : Agent, network : Network, damping : float) -> Agent:
-    """Updates a single agent, eg. moves the agent to an adjacent or random node"""
-    last_index, register = agent
+        index : The index of the given node
+        num_nodes : Number of nodes in network
+        max_links : Maximum number of outgoing links from given node
+        """
 
-    if random.random() > damping:
-        next_index = random.choice(network)[0]
-    else:
-        _, node_links = network[last_index]
-        next_index = random.choice(node_links)
+        links = list({random.randint(0, min(index + 3, num_nodes - 1)) for _ in range(max_links)})
+        if index in links: links.remove(index)
+        return (index, links)
 
-    register[next_index] += 1
-    return (next_index, register)
+    def to_matrix(self) -> np.ndarray:
+        """
+        Returns a matrix representation of the network, as a left/column stochastic matrix
+        """
+        
+        bases = []
 
-def progess_agents(agents : List[Agent], network : Network, damping : float = DEFAULT_DAMPING) -> List[Agent]:
-    """Moves all agents"""
-    return [progess_agent(agent, network, damping) for agent in agents]
+        for node in self.nodes:
+            row = np.zeros(self.num_nodes)
+            row[node[1]] = 1
+            if np.isclose(np.sum(row), 0):
+                row = np.ones(self.num_nodes)
+            bases.append(row / np.sum(row))
+        
+        return np.array(bases).T
 
-def agent_pagerank(agents : List[Agent], num_iterations : int) -> np.ndarray:
-    """Calculates the  rank, based on all the nodes the agents have visited"""
-    num_nodes = agents[0][1].shape[0]
-    importance = np.zeros(num_nodes, dtype="float64")
+def pagerank(M : np.ndarray, d : float = 0.85, v : np.ndarray = None, max_iterations : int = 100):
+    """
+    PageRank-algorithm returning a importance-vector of each page/node in a given adjacency matrix.
 
-    for _, register in agents:
-        importance += register
-    
-    return importance / (len(agents) * num_iterations)
+    M : A left/column stochastic matrix (i.e. a matrix where all columns sum to 1), representing a network.
+    d : The damping factor, representing the chance a web-surfer will randomly choose a new page to visit. The damping factor is usually set to 0.85, where 1 is no damping, and 0 is complete ramdomness.
+    v : Optional starting importance-vector (importance-vector is a stochastic vector, i.e. all elements sum to 1).
+    max_iterations : Optional factor controlling the maximum number of iterations.
+    """
+
+    if M.shape[0] != M.shape[1]: raise ValueError("Matrix is not square")
+    N = M.shape[0]
+
+    if v is None: v = np.ones(N) / N
+    M = d * M + (1 - d) / N
+
+    for _ in range(max_iterations):
+        v_next = M.dot(v)
+        if np.allclose(v, v_next): break
+        v = v_next
+
+    return v

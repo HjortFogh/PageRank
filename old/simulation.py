@@ -20,5 +20,5 @@ print(f"   Number of nodes      : {num_nodes}\n")
 simulated_rank = pr.agent_pagerank(agents, num_iterations)
 actual_rank = pr.pagerank(network)
 
-print("Actual rank   :", actual_rank)
-print("Simulated rank:", simulated_rank)
+print("Actual rank    :", actual_rank)
+print("Simulated rank :", simulated_rank)

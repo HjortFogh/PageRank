@@ -1,3 +1,5 @@
 activate.sh
+activate.bat
+
 venv/
 __pycache__/
